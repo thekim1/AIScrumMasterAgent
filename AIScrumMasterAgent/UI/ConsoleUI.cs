@@ -1,5 +1,7 @@
 using AIScrumMasterAgent.Models;
 using AIScrumMasterAgent.Services;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace AIScrumMasterAgent.UI;
 
@@ -7,16 +9,25 @@ public class ConsoleUI(
     IAzureDevOpsService devOpsService,
     ISprintPlanParser parser,
     IRepoContextFetcher contextFetcher,
-    ITicketEnricher enricher)
+    ITicketEnricher enricher,
+    IClaudeService claudeService)
 {
     private readonly IAzureDevOpsService _devOpsService = devOpsService;
     private readonly ISprintPlanParser _parser = parser;
     private readonly IRepoContextFetcher _contextFetcher = contextFetcher;
     private readonly ITicketEnricher _enricher = enricher;
+    private readonly IClaudeService _claudeService = claudeService;
 
-    public async Task RunAsync()
+    public async Task RunAsync(bool isDryRun = false, string? dryRunOutputPath = null)
     {
         Console.WriteLine("=== AI Scrum Master Agent POC ===");
+        if (isDryRun)
+        {
+            Console.WriteLine();
+            Console.WriteLine("*** [DRY RUN] — Claude will be called but no tickets will be written to Azure DevOps ***");
+            if (dryRunOutputPath is not null)
+                Console.WriteLine($"    Responses will be saved to: {dryRunOutputPath}");
+        }
         Console.WriteLine();
 
         // Step 1: Get sprint plan ticket ID
@@ -123,6 +134,7 @@ public class ConsoleUI(
 
         // Step 6: Review each item
         List<WorkItemResult> created = [];
+        List<DryRunEntry> dryRunEntries = [];
         int skipped = 0;
         int excluded = 0;
 
@@ -155,20 +167,32 @@ public class ConsoleUI(
                         Console.WriteLine($"  Fetching repo context from {primaryContext.RepoName}/{primaryContext.SolutionFolder}...");
 
                     Console.Write("  Calling Claude API...");
-                    Console.Write(" Creating ticket in Azure DevOps...");
 
-                    WorkItemResult? result = await _enricher.EnrichAsync(ticketId, item, primaryContext);
-
-                    if (result is not null)
+                    if (isDryRun)
                     {
-                        Console.WriteLine($"\n  ✓ Created #{result.Id} — \"{result.Title}\"");
-                        Console.WriteLine("  ✓ Updated sprint plan ticket");
-                        created.Add(result);
+                        GeneratedTicket ticket = await _claudeService.GenerateTicketAsync(item, primaryContext);
+                        Console.WriteLine();
+                        PrintDryRunTicket(ticket);
+                        created.Add(new WorkItemResult(0, ticket.Title, string.Empty));
+                        dryRunEntries.Add(new DryRunEntry(item.Text, ticket));
                     }
                     else
                     {
-                        Console.WriteLine("\n  (skipped — already has a ticket number)");
-                        skipped++;
+                        Console.Write(" Creating ticket in Azure DevOps...");
+
+                        WorkItemResult? result = await _enricher.EnrichAsync(ticketId, item, primaryContext);
+
+                        if (result is not null)
+                        {
+                            Console.WriteLine($"\n  ✓ Created #{result.Id} — \"{result.Title}\"");
+                            Console.WriteLine("  ✓ Updated sprint plan ticket");
+                            created.Add(result);
+                        }
+                        else
+                        {
+                            Console.WriteLine("\n  (skipped — already has a ticket number)");
+                            skipped++;
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -193,15 +217,46 @@ public class ConsoleUI(
 
         // Step 7: Summary
         Console.WriteLine("=== Done ===");
-        Console.WriteLine($"Created: {created.Count} ticket(s)");
+        Console.WriteLine($"{(isDryRun ? "Generated (dry run)" : "Created")}: {created.Count} ticket(s)");
         Console.WriteLine($"Skipped: {skipped} item(s)");
         Console.WriteLine($"Excluded: {excluded} item(s) (meeting/admin)");
 
         if (created.Count > 0)
         {
-            string ids = string.Join(", ", created.Select(r => $"#{r.Id}"));
-            Console.WriteLine($"\nNew tickets: {ids}");
+            if (isDryRun)
+            {
+                string titles = string.Join(", ", created.Select(r => $"\"{r.Title}\""));
+                Console.WriteLine($"\nGenerated tickets: {titles}");
+            }
+            else
+            {
+                string ids = string.Join(", ", created.Select(r => $"#{r.Id}"));
+                Console.WriteLine($"\nNew tickets: {ids}");
+            }
         }
+
+        if (isDryRun && dryRunOutputPath is not null && dryRunEntries.Count > 0)
+        {
+            string json = JsonSerializer.Serialize(dryRunEntries, new JsonSerializerOptions { WriteIndented = true });
+            await File.WriteAllTextAsync(dryRunOutputPath, json);
+            Console.WriteLine($"\nSaved {dryRunEntries.Count} generated ticket(s) to: {dryRunOutputPath}");
+        }
+    }
+
+    private static void PrintDryRunTicket(GeneratedTicket ticket)
+    {
+        Console.WriteLine("  --- Generated Ticket (dry run) ---");
+        Console.WriteLine($"  Title:       {ticket.Title}");
+        Console.WriteLine($"  Type:        {ticket.DetectedType}");
+        Console.WriteLine($"  Effort:      {ticket.EstimatedHours}");
+        Console.WriteLine($"  Tags:        {string.Join(", ", ticket.SuggestedTags)}");
+        Console.WriteLine($"  Description: {ticket.Description}");
+        Console.WriteLine("  Acceptance Criteria:");
+        foreach (string ac in ticket.AcceptanceCriteria)
+            Console.WriteLine($"    - {ac}");
+        Console.WriteLine("  Implementation Plan:");
+        Console.WriteLine($"    {ticket.ImplementationPlan.Replace("\n", "\n    ")}");
+        Console.WriteLine("  ----------------------------------");
     }
 
     private static int PromptInt(string prompt)
@@ -215,4 +270,8 @@ public class ConsoleUI(
             Console.WriteLine("Please enter a valid number.");
         }
     }
+
+    private record DryRunEntry(
+        [property: JsonPropertyName("itemText")] string ItemText,
+        [property: JsonPropertyName("ticket")] GeneratedTicket Ticket);
 }

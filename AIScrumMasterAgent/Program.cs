@@ -54,10 +54,20 @@ services.AddSingleton<IClaudeService, ClaudeService>();
 services.AddSingleton<ITicketEnricher, TicketEnricher>();
 services.AddSingleton<ConsoleUI>();
 
+bool isDryRun = args.Contains("--dry-run");
+
+string? dryRunOutputPath = null;
+int outputIdx = Array.IndexOf(args, "--output");
+if (outputIdx >= 0 && outputIdx + 1 < args.Length)
+{
+    dryRunOutputPath = args[outputIdx + 1];
+    isDryRun = true; // --output implies --dry-run
+}
+
 ServiceProvider provider = services.BuildServiceProvider();
 ConsoleUI ui = provider.GetRequiredService<ConsoleUI>();
 
-await ui.RunAsync();
+await ui.RunAsync(isDryRun, dryRunOutputPath);
 
 return 0;
 
