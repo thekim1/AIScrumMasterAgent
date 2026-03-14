@@ -1,0 +1,218 @@
+using AIScrumMasterAgent.Models;
+using AIScrumMasterAgent.Services;
+
+namespace AIScrumMasterAgent.UI;
+
+public class ConsoleUI(
+    IAzureDevOpsService devOpsService,
+    ISprintPlanParser parser,
+    IRepoContextFetcher contextFetcher,
+    ITicketEnricher enricher)
+{
+    private readonly IAzureDevOpsService _devOpsService = devOpsService;
+    private readonly ISprintPlanParser _parser = parser;
+    private readonly IRepoContextFetcher _contextFetcher = contextFetcher;
+    private readonly ITicketEnricher _enricher = enricher;
+
+    public async Task RunAsync()
+    {
+        Console.WriteLine("=== AI Scrum Master Agent POC ===");
+        Console.WriteLine();
+
+        // Step 1: Get sprint plan ticket ID
+        int ticketId = PromptInt("Enter sprint plan ticket ID: ");
+
+        Console.Write($"Fetching sprint plan ticket #{ticketId}...");
+        WorkItem sprintPlan;
+        try
+        {
+            sprintPlan = await _devOpsService.GetWorkItemAsync(ticketId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"\nError fetching ticket: {ex.Message}");
+            return;
+        }
+        Console.WriteLine($"\nTitle: {sprintPlan.Title}");
+        Console.WriteLine();
+
+        // Step 2: Select repos
+        Console.WriteLine("Fetching available repositories...");
+        List<RepoInfo> repos;
+        try
+        {
+            repos = await _devOpsService.ListReposAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fetching repositories: {ex.Message}");
+            return;
+        }
+
+        if (repos.Count == 0)
+        {
+            Console.WriteLine("No repositories found. Proceeding without repo context.");
+        }
+        else
+        {
+            Console.WriteLine("Available repositories:");
+            for (int i = 0; i < repos.Count; i++)
+                Console.WriteLine($"  [{i + 1}] {repos[i].Name}");
+            Console.WriteLine();
+        }
+
+        List<RepoInfo> selectedRepos = [];
+        Dictionary<string, string> repoPaths = []; // repoId -> solutionFolder
+
+        if (repos.Count > 0)
+        {
+            Console.Write("Select relevant repos for this sprint (comma-separated, e.g. 1,3), or press Enter to skip: ");
+            string input = Console.ReadLine()?.Trim() ?? "";
+
+            if (!string.IsNullOrEmpty(input))
+            {
+                foreach (string part in input.Split(','))
+                {
+                    if (int.TryParse(part.Trim(), out int idx) && idx >= 1 && idx <= repos.Count)
+                        selectedRepos.Add(repos[idx - 1]);
+                }
+            }
+        }
+
+        // Step 3: Get solution folder for each selected repo
+        foreach (RepoInfo repo in selectedRepos)
+        {
+            Console.Write($"Repo: {repo.Name}\nEnter solution folder path (e.g. src/MyApp): ");
+            string folder = Console.ReadLine()?.Trim() ?? "";
+            if (!string.IsNullOrEmpty(folder))
+                repoPaths[repo.Id] = folder;
+        }
+
+        // Step 4: Fetch repo contexts
+        List<RepoContext> repoContexts = [];
+        if (selectedRepos.Count > 0)
+        {
+            Console.WriteLine("\nFetching repo context(s)...");
+            foreach (RepoInfo repo in selectedRepos)
+            {
+                if (!repoPaths.TryGetValue(repo.Id, out string? folder))
+                    continue;
+                try
+                {
+                    Console.Write($"  {repo.Name}/{folder}...");
+                    RepoContext ctx = await _contextFetcher.FetchAsync(repo.Id, repo.Name, folder);
+                    repoContexts.Add(ctx);
+                    Console.WriteLine(ctx.AgentContextContent is not null ? " ✓ (AGENT_CONTEXT.md found)" : " ✓ (no AGENT_CONTEXT.md)");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($" ✗ Failed: {ex.Message}");
+                }
+            }
+        }
+
+        // Step 5: Parse sprint plan items
+        List<SprintPlanItem> items = _parser.Parse(sprintPlan.Description);
+        if (items.Count == 0)
+        {
+            Console.WriteLine("\nNo unlinked todo items found in the sprint plan.");
+            return;
+        }
+
+        Console.WriteLine($"\nFound {items.Count} unlinked todo item(s). Review each:\n");
+
+        // Step 6: Review each item
+        List<WorkItemResult> created = [];
+        int skipped = 0;
+        int excluded = 0;
+
+        for (int i = 0; i < items.Count; i++)
+        {
+            SprintPlanItem item = items[i];
+            string kindLabel = item.Kind switch
+            {
+                ItemKind.Meeting => "Meeting ⚠",
+                ItemKind.Investigation => "Investigation",
+                _ => "Implementation"
+            };
+
+            Console.WriteLine($"[{i + 1}/{items.Count}] \"{item.Text}\"");
+            if (item.ParentFeature is not null)
+                Console.WriteLine($"      Parent: {item.ParentFeature}");
+            Console.WriteLine($"      Detected: {kindLabel}");
+            Console.Write("      → (C)reate ticket / (S)kip / (E)xclude as meeting: ");
+
+            string action = (Console.ReadLine() ?? "s").Trim().ToUpperInvariant();
+
+            if (action == "C")
+            {
+                RepoContext? primaryContext = repoContexts.Count > 0 ? repoContexts[0] : null;
+                Console.WriteLine($"Generating ticket for: \"{item.Text}\"");
+
+                try
+                {
+                    if (primaryContext is not null)
+                        Console.WriteLine($"  Fetching repo context from {primaryContext.RepoName}/{primaryContext.SolutionFolder}...");
+
+                    Console.Write("  Calling Claude API...");
+                    Console.Write(" Creating ticket in Azure DevOps...");
+
+                    WorkItemResult? result = await _enricher.EnrichAsync(ticketId, item, primaryContext);
+
+                    if (result is not null)
+                    {
+                        Console.WriteLine($"\n  ✓ Created #{result.Id} — \"{result.Title}\"");
+                        Console.WriteLine("  ✓ Updated sprint plan ticket");
+                        created.Add(result);
+                    }
+                    else
+                    {
+                        Console.WriteLine("\n  (skipped — already has a ticket number)");
+                        skipped++;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"\n  ✗ Error: {ex.Message}");
+                    skipped++;
+                }
+            }
+            else if (action == "E")
+            {
+                Console.WriteLine("  → Excluded (meeting/admin)");
+                excluded++;
+            }
+            else
+            {
+                Console.WriteLine("  → Skipped");
+                skipped++;
+            }
+
+            Console.WriteLine();
+        }
+
+        // Step 7: Summary
+        Console.WriteLine("=== Done ===");
+        Console.WriteLine($"Created: {created.Count} ticket(s)");
+        Console.WriteLine($"Skipped: {skipped} item(s)");
+        Console.WriteLine($"Excluded: {excluded} item(s) (meeting/admin)");
+
+        if (created.Count > 0)
+        {
+            string ids = string.Join(", ", created.Select(r => $"#{r.Id}"));
+            Console.WriteLine($"\nNew tickets: {ids}");
+        }
+    }
+
+    private static int PromptInt(string prompt)
+    {
+        while (true)
+        {
+            Console.Write(prompt);
+            string input = Console.ReadLine()?.Trim() ?? "";
+            if (int.TryParse(input, out int value))
+                return value;
+            Console.WriteLine("Please enter a valid number.");
+        }
+    }
+}

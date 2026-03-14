@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="README.md" />
+  </Folder>
+  <Project Path="AIScrumMasterAgent.Tests/AIScrumMasterAgent.Tests.csproj" />
+  <Project Path="AIScrumMasterAgent/AIScrumMasterAgent.csproj" />
+</Solution>
