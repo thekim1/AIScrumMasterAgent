@@ -36,7 +36,7 @@ public class ClaudeServiceTests
           "description": "Test description",
           "acceptanceCriteria": ["AC1", "AC2"],
           "estimatedHours": "4-8h",
-          "implementationPlan": "## Steps\n- Step 1",
+          "implementationPlan": ["Step 1: Do something", "Step 2: Do another thing"],
           "detectedType": "Implementation",
           "suggestedTags": ["EPlatform"]
         }

@@ -48,8 +48,10 @@ public class TicketEnricher(
             sb.AppendLine($"<li>{ac}</li>");
         sb.AppendLine("</ul>");
         sb.AppendLine($"<h3>Estimated Effort</h3><p>{ticket.EstimatedHours}</p>");
-        sb.AppendLine("<h3>AI Implementation Plan</h3>");
-        sb.AppendLine($"<pre>{ticket.ImplementationPlan}</pre>");
+        sb.AppendLine("<h3>AI Implementation Plan</h3><ul>");
+        foreach (string step in ticket.ImplementationPlan)
+            sb.AppendLine($"<li>{step}</li>");
+        sb.AppendLine("</ul>");
         return sb.ToString();
     }
 

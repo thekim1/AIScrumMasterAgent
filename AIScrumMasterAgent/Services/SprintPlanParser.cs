@@ -20,6 +20,9 @@ public partial class SprintPlanParser : ISprintPlanParser
     [GeneratedRegex(@"\n{3,}")]
     private static partial Regex MultipleNewlinesRegex();
 
+    [GeneratedRegex(@"<(/?)(ul|ol|li)(\s[^>]*)?>", RegexOptions.IgnoreCase)]
+    private static partial Regex HtmlListTagRegex();
+
     public List<SprintPlanItem> Parse(string ticketDescription)
     {
         string text = StripHtml(ticketDescription);
@@ -40,12 +43,15 @@ public partial class SprintPlanParser : ISprintPlanParser
                 continue;
             }
 
-            // Stop at the next top-level section heading (ends with ':' at indent 0, not a bullet)
+            // Stop at the next top-level section heading (ends with ':' at indent 0, not a bullet,
+            // parenthetical, or single-word subsection label like "Planned:" / "Side:")
             if (line.Length > 0
                 && !line.StartsWith(' ')
                 && !line.StartsWith('\t')
+                && !line.StartsWith('(')
                 && !line.TrimStart().StartsWith('*')
-                && line.TrimEnd().EndsWith(':'))
+                && line.TrimEnd().EndsWith(':')
+                && line.TrimEnd().TrimEnd(':').TrimEnd().Contains(' '))
             {
                 break;
             }
@@ -81,10 +87,38 @@ public partial class SprintPlanParser : ISprintPlanParser
         return result;
     }
 
+    private static string ConvertHtmlListsToMarkdown(string html)
+    {
+        int depth = 0;
+        return HtmlListTagRegex().Replace(html, m =>
+        {
+            string tag = m.Groups[2].Value.ToLowerInvariant();
+            bool isClosing = m.Groups[1].Value == "/";
+
+            if (tag is "ul" or "ol")
+            {
+                if (!isClosing) depth++;
+                else depth--;
+                return string.Empty;
+            }
+
+            if (tag == "li")
+            {
+                if (isClosing) return string.Empty;
+                return "\n" + new string(' ', Math.Max(0, depth - 1) * 2) + "* ";
+            }
+
+            return m.Value;
+        });
+    }
+
     internal static string StripHtml(string html)
     {
+        // Convert HTML list tags to markdown-style bullets with proper indentation
+        string text = ConvertHtmlListsToMarkdown(html);
+
         // Convert block-level closing tags to newlines to preserve line structure
-        string text = BlockClosingTagRegex().Replace(html, "\n");
+        text = BlockClosingTagRegex().Replace(text, "\n");
         text = LineBreakTagRegex().Replace(text, "\n");
 
         // Remove all remaining HTML tags

@@ -130,6 +130,45 @@ cd AIScrumMasterAgent
 dotnet run
 ```
 
+### Dry-run mode
+
+Use `--dry-run` to preview what Claude would generate **without writing anything to Azure DevOps**. Azure DevOps is still contacted to fetch the sprint plan and repo context; only ticket creation, child links, and description updates are skipped.
+
+```bash
+dotnet run -- --dry-run
+```
+
+When active, a prominent `[DRY RUN]` banner is printed at startup, and any item you choose to create (`C`) will display the generated ticket content in the console instead of creating it.
+
+#### Saving responses to a file
+
+Add `--output <path>` to save every generated Claude response as a JSON file. This lets you inspect and validate the JSON before committing to creating real tickets. Passing `--output` automatically enables dry-run mode.
+
+```bash
+dotnet run -- --dry-run --output responses.json
+# or shorthand (--output implies --dry-run):
+dotnet run -- --output responses.json
+```
+
+The file is a JSON array — one entry per item you chose to generate:
+
+```json
+[
+  {
+    "itemText": "Implement feature X",
+    "ticket": {
+      "title": "...",
+      "description": "...",
+      "acceptanceCriteria": ["..."],
+      "estimatedHours": "4-8h",
+      "implementationPlan": "...",
+      "detectedType": "Implementation",
+      "suggestedTags": ["..."]
+    }
+  }
+]
+```
+
 The app will prompt you step-by-step:
 
 1. **Enter sprint plan ticket ID** — the Azure DevOps work item number for your sprint plan
