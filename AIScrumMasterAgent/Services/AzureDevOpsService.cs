@@ -59,7 +59,7 @@ public class AzureDevOpsService(IHttpClientFactory httpClientFactory, AppConfig 
         StringContent content = new(json, Encoding.UTF8, "application/json-patch+json");
 
         HttpResponseMessage response = await client.PostAsync(url, content);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithLoggingAsync(response, $"CreateWorkItem (type='{type}', url={url})");
 
         string responseJson = await response.Content.ReadAsStringAsync();
         WorkItemApiResponse apiItem = JsonSerializer.Deserialize<WorkItemApiResponse>(responseJson, JsonOptions)
@@ -214,6 +214,17 @@ public class AzureDevOpsService(IHttpClientFactory httpClientFactory, AppConfig 
             ?? new ListApiResponse<WorkItemApiResponse>();
 
         return [.. batchList.Value.Select(MapWorkItem)];
+    }
+
+    private static async Task EnsureSuccessWithLoggingAsync(HttpResponseMessage response, string context)
+    {
+        if (!response.IsSuccessStatusCode)
+        {
+            string body = await response.Content.ReadAsStringAsync();
+            Console.Error.WriteLine($"[AzureDevOps] {context} — {(int)response.StatusCode} {response.ReasonPhrase}");
+            Console.Error.WriteLine($"[AzureDevOps] Response body: {body}");
+            response.EnsureSuccessStatusCode();
+        }
     }
 
     private static WorkItem MapWorkItem(WorkItemApiResponse api)

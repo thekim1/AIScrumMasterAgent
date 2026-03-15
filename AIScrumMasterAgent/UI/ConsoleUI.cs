@@ -255,7 +255,8 @@ public class ConsoleUI(
         foreach (string ac in ticket.AcceptanceCriteria)
             Console.WriteLine($"    - {ac}");
         Console.WriteLine("  Implementation Plan:");
-        Console.WriteLine($"    {ticket.ImplementationPlan.Replace("\n", "\n    ")}");
+        foreach (string step in ticket.ImplementationPlan)
+            Console.WriteLine($"    - {step}");
         Console.WriteLine("  ----------------------------------");
     }
 

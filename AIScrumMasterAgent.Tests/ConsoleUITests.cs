@@ -30,7 +30,7 @@ public class ConsoleUITests : IDisposable
             _enricherMock.Object, _claudeMock.Object);
 
     private static GeneratedTicket MakeGeneratedTicket(string title = "My Generated Ticket") =>
-        new(title, "A description", ["AC1", "AC2"], "4-8h", "Step 1\nStep 2", "Implementation", ["tag1"]);
+        new(title, "A description", ["AC1", "AC2"], "4-8h", ["Step 1", "Step 2"], "Implementation", ["tag1"]);
 
     /// <summary>
     /// Sets up the mocks needed for the basic RunAsync flow:

@@ -18,8 +18,8 @@ public class AzureDevOpsConfig
 public class ClaudeConfig
 {
     public string ApiKey { get; set; } = "";
-    public string Model { get; set; } = "claude-sonnet-4-20250514";
-    public int MaxTokens { get; set; } = 2000;
+    public string Model { get; set; } = "claude-haiku-4-5";
+    public int MaxTokens { get; set; } = 2048;
 }
 
 public class AgentConfig

@@ -69,13 +69,65 @@ public class ClaudeService(IHttpClientFactory httpClientFactory, AppConfig confi
 
         clean = clean.Trim();
 
-        GeneratedTicket? ticket = JsonSerializer.Deserialize<GeneratedTicket>(clean, CaseInsensitiveOptions);
+        // Extract the JSON object in case Claude added preamble or trailing text
+        int jsonStart = clean.IndexOf('{');
+        int jsonEnd = clean.LastIndexOf('}');
+        if (jsonStart >= 0 && jsonEnd > jsonStart)
+            clean = clean[jsonStart..(jsonEnd + 1)];
+
+        GeneratedTicket? ticket;
+        try
+        {
+            ticket = JsonSerializer.Deserialize<GeneratedTicket>(clean, CaseInsensitiveOptions);
+        }
+        catch (JsonException)
+        {
+            string repaired = RepairTruncatedJson(clean);
+            ticket = JsonSerializer.Deserialize<GeneratedTicket>(repaired, CaseInsensitiveOptions);
+        }
 
         return ticket ?? throw new InvalidOperationException("Failed to deserialize Claude's JSON response.");
     }
 
+    /// <summary>
+    /// Closes any unclosed strings, arrays, and objects in a truncated JSON payload.
+    /// </summary>
+    private static string RepairTruncatedJson(string json)
+    {
+        StringBuilder sb = new System.Text.StringBuilder(json.TrimEnd().TrimEnd(','));
+        bool inString = false;
+        bool escaped = false;
+        int braceDepth = 0;
+        int bracketDepth = 0;
+
+        foreach (char c in sb.ToString())
+        {
+            if (escaped) { escaped = false; continue; }
+            if (c == '\\' && inString) { escaped = true; continue; }
+            if (c == '"') { inString = !inString; continue; }
+            if (inString) continue;
+
+            if (c == '{') braceDepth++;
+            else if (c == '}') braceDepth--;
+            else if (c == '[') bracketDepth++;
+            else if (c == ']') bracketDepth--;
+        }
+
+        if (inString) sb.Append('"');
+        for (int i = 0; i < bracketDepth; i++) sb.Append(']');
+        for (int i = 0; i < braceDepth; i++) sb.Append('}');
+
+        return sb.ToString();
+    }
+
+    private const int MaxFolderTreeLines = 50;
+    private const int MaxAgentContextChars = 1200;
+
     private static string BuildUserPrompt(SprintPlanItem item, RepoContext? context)
     {
+        string folderTree = TruncateLines(context?.FolderTree, MaxFolderTreeLines) ?? "Not available";
+        string agentContext = TruncateChars(context?.AgentContextContent, MaxAgentContextChars) ?? "Not available";
+
         return $$"""
             Create an Azure DevOps work item for the following task.
 
@@ -89,23 +141,37 @@ public class ClaudeService(IHttpClientFactory httpClientFactory, AppConfig confi
             Solution folder: {{context?.SolutionFolder ?? "Not specified"}}
 
             ### Folder Structure
-            {{context?.FolderTree ?? "Not available"}}
+            {{folderTree}}
 
             ### Project Context (AGENT_CONTEXT.md)
-            {{context?.AgentContextContent ?? "Not available"}}
+            {{agentContext}}
 
             ## Required Output (JSON)
-            Respond with exactly this JSON structure:
+            Respond with exactly this JSON structure. Be concise — stay within the stated limits.
             {
-              "title": "short descriptive title",
-              "description": "2-3 sentence description of what and why",
-              "acceptanceCriteria": ["criterion 1", "criterion 2"],
+              "title": "short descriptive title (max 80 chars)",
+              "description": "1-2 sentences, what and why (max 200 chars)",
+              "acceptanceCriteria": ["up to 4 criteria, 1 sentence each"],
               "estimatedHours": "X-Yh",
-              "implementationPlan": "markdown formatted plan with steps, relevant file paths, and patterns to follow",
+              "implementationPlan": "up to 5 bullet points with relevant file paths",
               "detectedType": "Implementation|Investigation|Bug",
-              "suggestedTags": ["tag1", "tag2"]
+              "suggestedTags": ["up to 3 tags"]
             }
             """;
+    }
+
+    private static string? TruncateLines(string? text, int maxLines)
+    {
+        if (text is null) return null;
+        string[] lines = text.Split('\n');
+        if (lines.Length <= maxLines) return text;
+        return string.Join('\n', lines.Take(maxLines)) + $"\n... ({lines.Length - maxLines} lines omitted)";
+    }
+
+    private static string? TruncateChars(string? text, int maxChars)
+    {
+        if (text is null) return null;
+        return text.Length <= maxChars ? text : text[..maxChars] + "... (truncated)";
     }
 
     // --- Internal request/response models ---

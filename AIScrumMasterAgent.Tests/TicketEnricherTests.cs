@@ -18,7 +18,7 @@ public class TicketEnricherTests
         new(_devOpsMock.Object, _claudeMock.Object, _config);
 
     private static GeneratedTicket MakeGeneratedTicket(string title = "Generated Title") =>
-        new(title, "Description", ["AC1"], "4-8h", "## Plan", "Implementation", ["Tag1"]);
+        new(title, "Description", ["AC1"], "4-8h", ["## Plan"], "Implementation", ["Tag1"]);
 
     [Fact]
     public async Task EnrichAsync_SkipsItemWithExistingTicketId()
