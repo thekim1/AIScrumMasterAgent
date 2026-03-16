@@ -1,5 +1,6 @@
 using AIScrumMasterAgent.Models;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace AIScrumMasterAgent.Services;
 
@@ -26,7 +27,8 @@ public class TicketEnricher(
         {
             Title = generatedTicket.Title,
             Description = description,
-            Tags = tags
+            Tags = tags,
+            EstimatedHours = ParseEstimatedHours(generatedTicket.EstimatedHours)
         };
 
         WorkItem created = await _devOpsService.CreateWorkItemAsync(
@@ -37,6 +39,19 @@ public class TicketEnricher(
         await UpdateSprintPlanDescriptionAsync(sprintPlanTicketId, item.Text, created.Id);
 
         return new WorkItemResult(created.Id, created.Title, created.Url);
+    }
+
+    internal static double? ParseEstimatedHours(string? estimatedHours)
+    {
+        if (string.IsNullOrWhiteSpace(estimatedHours))
+            return null;
+
+        Match match = Regex.Match(estimatedHours, @"^\s*(\d+(?:\.\d+)?)");
+        if (match.Success && double.TryParse(match.Groups[1].Value, System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture, out double result))
+            return result;
+
+        return null;
     }
 
     internal static string FormatDescription(GeneratedTicket ticket)

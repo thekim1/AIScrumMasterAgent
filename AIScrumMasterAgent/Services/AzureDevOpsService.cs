@@ -55,6 +55,9 @@ public class AzureDevOpsService(IHttpClientFactory httpClientFactory, AppConfig 
         if (!string.IsNullOrEmpty(request.Tags))
             patchOps.Add(new { op = "add", path = "/fields/System.Tags", value = request.Tags });
 
+        if (request.EstimatedHours.HasValue)
+            patchOps.Add(new { op = "add", path = "/fields/Microsoft.VSTS.Scheduling.OriginalEstimate", value = (object)request.EstimatedHours.Value });
+
         string json = JsonSerializer.Serialize(patchOps);
         StringContent content = new(json, Encoding.UTF8, "application/json-patch+json");
 
