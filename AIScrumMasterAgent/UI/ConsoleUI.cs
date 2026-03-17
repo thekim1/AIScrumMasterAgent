@@ -93,10 +93,15 @@ public class ConsoleUI(
         // Step 3: Get solution folder for each selected repo
         foreach (RepoInfo repo in selectedRepos)
         {
-            Console.Write($"Repo: {repo.Name}\nEnter solution folder path (e.g. src/MyApp): ");
+            Console.Write($"Repo: {repo.Name}\nEnter solution folder path (e.g. src/MyApp) [default: /]: ");
             string folder = Console.ReadLine()?.Trim() ?? "";
-            if (!string.IsNullOrEmpty(folder))
-                repoPaths[repo.Id] = folder;
+
+            if (string.IsNullOrEmpty(folder))
+            {
+                folder = "/";
+            }
+
+            repoPaths[repo.Id] = folder;
         }
 
         // Step 4: Fetch repo contexts
