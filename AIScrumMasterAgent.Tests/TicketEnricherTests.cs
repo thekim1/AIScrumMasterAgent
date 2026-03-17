@@ -89,4 +89,50 @@ public class TicketEnricherTests
         result.ShouldNotBeNull();
         result!.Id.ShouldBe(300);
     }
+
+    [Theory]
+    [InlineData("3-5h", 3.0)]
+    [InlineData("4-8h", 4.0)]
+    [InlineData("4h", 4.0)]
+    [InlineData("1.5-3h", 1.5)]
+    [InlineData("10h", 10.0)]
+    public void ParseEstimatedHours_ReturnsLowerBound(string input, double expected)
+    {
+        double? result = TicketEnricher.ParseEstimatedHours(input);
+
+        result.ShouldBe(expected);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("abc")]
+    [InlineData("unknown")]
+    public void ParseEstimatedHours_ReturnNullForMalformedOrMissingInput(string? input)
+    {
+        double? result = TicketEnricher.ParseEstimatedHours(input);
+
+        result.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task EnrichAsync_SetsEstimatedHoursOnCreateRequest()
+    {
+        SprintPlanItem item = new("Do something", null, null, ItemKind.Implementation);
+        GeneratedTicket ticket = new("Do something", "Desc", ["AC"], "3-5h", ["Step"], "Task", ["tag"]);
+
+        _claudeMock.Setup(c => c.GenerateTicketAsync(item, null)).ReturnsAsync(ticket);
+        _devOpsMock.Setup(d => d.CreateWorkItemAsync("User Story", It.Is<CreateWorkItemRequest>(r => r.EstimatedHours == 3.0)))
+            .ReturnsAsync(new WorkItem { Id = 400, Title = "Do something", Url = "http://example.com/400" });
+        _devOpsMock.Setup(d => d.GetWorkItemAsync(20))
+            .ReturnsAsync(new WorkItem { Id = 20, Description = "Do something in plan" });
+
+        WorkItemResult? result = await CreateEnricher().EnrichAsync(20, item, null);
+
+        result.ShouldNotBeNull();
+        _devOpsMock.Verify(
+            d => d.CreateWorkItemAsync("User Story", It.Is<CreateWorkItemRequest>(r => r.EstimatedHours == 3.0)),
+            Times.Once);
+    }
 }
