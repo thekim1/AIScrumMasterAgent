@@ -25,7 +25,7 @@ public class TicketEnricherTests
     {
         SprintPlanItem item = new("Already has ticket", null, 12345, ItemKind.Implementation);
 
-        WorkItemResult? result = await CreateEnricher().EnrichAsync(99, item, null);
+        WorkItemResult? result = await CreateEnricher().EnrichAsync(99, item, null, null);
 
         result.ShouldBeNull();
         _claudeMock.VerifyNoOtherCalls();
@@ -45,7 +45,7 @@ public class TicketEnricherTests
         _devOpsMock.Setup(d => d.GetWorkItemAsync(1))
             .ReturnsAsync(new WorkItem { Id = 1, Description = "Formatera all kod" });
 
-        await CreateEnricher().EnrichAsync(1, item, context);
+        await CreateEnricher().EnrichAsync(1, item, context, null);
 
         _claudeMock.Verify(c => c.GenerateTicketAsync(item, context), Times.Once);
     }
@@ -62,7 +62,7 @@ public class TicketEnricherTests
         _devOpsMock.Setup(d => d.GetWorkItemAsync(10))
             .ReturnsAsync(new WorkItem { Id = 10, Description = "Sprint plan with Formatera all kod in it" });
 
-        WorkItemResult? result = await CreateEnricher().EnrichAsync(10, item, null);
+        WorkItemResult? result = await CreateEnricher().EnrichAsync(10, item, null, null);
 
         result.ShouldNotBeNull();
         result!.Id.ShouldBe(200);
@@ -84,7 +84,7 @@ public class TicketEnricherTests
         _devOpsMock.Setup(d => d.GetWorkItemAsync(5))
             .ReturnsAsync(new WorkItem { Id = 5, Description = "Some task in sprint plan" });
 
-        WorkItemResult? result = await CreateEnricher().EnrichAsync(5, item, contextWithoutAgentFile);
+        WorkItemResult? result = await CreateEnricher().EnrichAsync(5, item, contextWithoutAgentFile, null);
 
         result.ShouldNotBeNull();
         result!.Id.ShouldBe(300);
@@ -104,7 +104,7 @@ public class TicketEnricherTests
         _devOpsMock.Setup(d => d.GetWorkItemAsync(sprintPlanId))
             .ReturnsAsync(new WorkItem { Id = sprintPlanId, Description = "Some task" });
 
-        await CreateEnricher().EnrichAsync(sprintPlanId, item, null);
+        await CreateEnricher().EnrichAsync(sprintPlanId, item, null, null);
 
         _devOpsMock.Verify(d => d.AddRelatedLinkAsync(createdWorkItemId, sprintPlanId), Times.Once);
     }

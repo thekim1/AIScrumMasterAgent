@@ -152,6 +152,9 @@ public partial class SprintPlanParser : ISprintPlanParser
         if (ContainsAny(lower, "boka", "möte", "meeting", "träff"))
             return ItemKind.Meeting;
 
+        if (lower.StartsWith("feature:") || lower.StartsWith("feature "))
+            return ItemKind.Feature;
+
         if (ContainsAny(lower, "undersök", "utred", "kolla", "verifiera"))
             return ItemKind.Investigation;
 

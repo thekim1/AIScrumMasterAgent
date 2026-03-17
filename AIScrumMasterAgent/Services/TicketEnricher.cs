@@ -13,7 +13,7 @@ public class TicketEnricher(
     private readonly IClaudeService _claudeService = claudeService;
     private readonly AppConfig _config = config;
 
-    public async Task<WorkItemResult?> EnrichAsync(int sprintPlanTicketId, SprintPlanItem item, RepoContext? context)
+    public async Task<WorkItemResult?> EnrichAsync(int sprintPlanTicketId, SprintPlanItem item, RepoContext? context, int? parentTicketId = null)
     {
         if (item.ExistingTicketId.HasValue)
             return null;
@@ -25,6 +25,9 @@ public class TicketEnricher(
         string description = FormatDescription(generatedTicket);
         string tags = string.Join("; ", generatedTicket.SuggestedTags);
 
+        // Map ItemKind.Feature to Feature WorkItem type, otherwise default to config type
+        string workItemType = item.Kind == ItemKind.Feature ? "Feature" : _config.Agent.SprintPlanTicketType;
+
         CreateWorkItemRequest createRequest = new()
         {
             Title = generatedTicket.Title,
@@ -34,10 +37,14 @@ public class TicketEnricher(
             IterationPath = sprintPlan.IterationPath
         };
 
-        WorkItem created = await _devOpsService.CreateWorkItemAsync(
-            _config.Agent.SprintPlanTicketType, createRequest);
+        WorkItem created = await _devOpsService.CreateWorkItemAsync(workItemType, createRequest);
 
         await _devOpsService.AddRelatedLinkAsync(created.Id, sprintPlanTicketId);
+
+        if (parentTicketId.HasValue)
+        {
+            await _devOpsService.AddParentLinkAsync(created.Id, parentTicketId.Value);
+        }
 
         await UpdateSprintPlanDescriptionAsync(sprintPlanTicketId, item.Text, created.Id, sprintPlan.Description);
 

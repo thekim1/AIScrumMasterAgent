@@ -117,6 +117,32 @@ public class AzureDevOpsService(IHttpClientFactory httpClientFactory, AppConfig 
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task AddParentLinkAsync(int childId, int parentId)
+    {
+        HttpClient client = CreateClient();
+        string url = $"{BaseUrl}/_apis/wit/workitems/{childId}?api-version=7.1";
+
+        var patchOps = new[]
+        {
+            new
+            {
+                op = "add",
+                path = "/relations/-",
+                value = new
+                {
+                    rel = "System.LinkTypes.Hierarchy-Reverse",
+                    url = $"{_config.AzureDevOps.OrgUrl}/_apis/wit/workitems/{parentId}"
+                }
+            }
+        };
+
+        string json = JsonSerializer.Serialize(patchOps);
+        StringContent content = new(json, Encoding.UTF8, "application/json-patch+json");
+
+        HttpResponseMessage response = await client.PatchAsync(url, content);
+        response.EnsureSuccessStatusCode();
+    }
+
     public async Task<List<RepoInfo>> ListReposAsync()
     {
         HttpClient client = CreateClient();
