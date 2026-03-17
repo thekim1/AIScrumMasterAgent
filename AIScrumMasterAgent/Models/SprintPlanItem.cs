@@ -11,5 +11,6 @@ public enum ItemKind
     Implementation,
     Investigation,
     Meeting,
+    Feature,
     Unknown
 }

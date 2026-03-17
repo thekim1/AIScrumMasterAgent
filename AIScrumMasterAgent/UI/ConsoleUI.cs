@@ -155,6 +155,7 @@ public class ConsoleUI(
         // Step 6: Review each item
         List<WorkItemResult> created = [];
         List<DryRunEntry> dryRunEntries = [];
+        Dictionary<string, int> createdFeatures = [];
         int skipped = 0;
         int excluded = 0;
 
@@ -165,6 +166,7 @@ public class ConsoleUI(
             {
                 ItemKind.Meeting => "Meeting ⚠",
                 ItemKind.Investigation => "Investigation",
+                ItemKind.Feature => "Feature",
                 _ => "Implementation"
             };
 
@@ -172,12 +174,17 @@ public class ConsoleUI(
             if (item.ParentFeature is not null)
                 Console.WriteLine($"      Parent: {item.ParentFeature}");
             Console.WriteLine($"      Detected: {kindLabel}");
-            Console.Write("      → (C)reate ticket / (S)kip / (E)xclude as meeting: ");
+            Console.Write("      → (C)reate ticket / (F)eature / (S)kip / (E)xclude as meeting: ");
 
             string action = (Console.ReadLine() ?? "s").Trim().ToUpperInvariant();
 
-            if (action == "C")
+            if (action == "C" || action == "F")
             {
+                if (action == "F")
+                {
+                    item = item with { Kind = ItemKind.Feature };
+                }
+
                 RepoContext? primaryContext = repoContexts.Count > 0 ? repoContexts[0] : null;
                 Console.WriteLine($"Generating ticket for: \"{item.Text}\"");
 
@@ -188,22 +195,45 @@ public class ConsoleUI(
 
                     Console.Write("  Calling Claude API...");
 
+                    int? parentTicketId = null;
+                    if (item.ParentFeature != null)
+                    {
+                        System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(item.ParentFeature, @"^#(\d+)\b");
+                        if (m.Success)
+                        {
+                            parentTicketId = int.Parse(m.Groups[1].Value);
+                        }
+                        else if (createdFeatures.TryGetValue(item.ParentFeature, out int id))
+                        {
+                            parentTicketId = id;
+                        }
+                    }
+
                     if (isDryRun)
                     {
                         GeneratedTicket ticket = await _claudeService.GenerateTicketAsync(item, primaryContext);
                         Console.WriteLine();
                         PrintDryRunTicket(ticket);
-                        created.Add(new WorkItemResult(0, ticket.Title, string.Empty));
+
+                        // Use a dummy negative ID so child items can link to it within the same dry run
+                        int dummyId = -1 * (dryRunEntries.Count + 1);
+                        if (item.Kind == ItemKind.Feature)
+                            createdFeatures[item.Text] = dummyId;
+
+                        created.Add(new WorkItemResult(dummyId, ticket.Title, string.Empty));
                         dryRunEntries.Add(new DryRunEntry(item.Text, ticket));
                     }
                     else
                     {
                         Console.Write(" Creating ticket in Azure DevOps...");
 
-                        WorkItemResult? result = await _enricher.EnrichAsync(ticketId, item, primaryContext);
+                        WorkItemResult? result = await _enricher.EnrichAsync(ticketId, item, primaryContext, parentTicketId);
 
                         if (result is not null)
                         {
+                            if (item.Kind == ItemKind.Feature)
+                                createdFeatures[item.Text] = result.Id;
+
                             Console.WriteLine($"\n  ✓ Created #{result.Id} — \"{result.Title}\"");
                             Console.WriteLine("  ✓ Updated sprint plan ticket");
                             created.Add(result);

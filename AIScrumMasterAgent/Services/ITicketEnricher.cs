@@ -4,5 +4,5 @@ namespace AIScrumMasterAgent.Services;
 
 public interface ITicketEnricher
 {
-    Task<WorkItemResult?> EnrichAsync(int sprintPlanTicketId, SprintPlanItem item, RepoContext? context);
+    Task<WorkItemResult?> EnrichAsync(int sprintPlanTicketId, SprintPlanItem item, RepoContext? context, int? parentTicketId = null);
 }

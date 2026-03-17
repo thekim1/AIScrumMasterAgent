@@ -8,6 +8,7 @@ public interface IAzureDevOpsService
     Task<WorkItem> CreateWorkItemAsync(string type, CreateWorkItemRequest request);
     Task UpdateWorkItemDescriptionAsync(int id, string newDescription);
     Task AddRelatedLinkAsync(int sourceId, int targetId);
+    Task AddParentLinkAsync(int childId, int parentId);
     Task<List<RepoInfo>> ListReposAsync();
     Task<List<string>> GetFolderTreeAsync(string repoId, string folderPath, int depth = 3);
     Task<string?> GetFileContentAsync(string repoId, string filePath);
