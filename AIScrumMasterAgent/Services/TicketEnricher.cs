@@ -18,6 +18,8 @@ public class TicketEnricher(
         if (item.ExistingTicketId.HasValue)
             return null;
 
+        WorkItem sprintPlan = await _devOpsService.GetWorkItemAsync(sprintPlanTicketId);
+
         GeneratedTicket generatedTicket = await _claudeService.GenerateTicketAsync(item, context);
 
         string description = FormatDescription(generatedTicket);
@@ -28,7 +30,8 @@ public class TicketEnricher(
             Title = generatedTicket.Title,
             Description = description,
             Tags = tags,
-            EstimatedHours = ParseEstimatedHours(generatedTicket.EstimatedHours)
+            EstimatedHours = ParseEstimatedHours(generatedTicket.EstimatedHours),
+            IterationPath = sprintPlan.IterationPath
         };
 
         WorkItem created = await _devOpsService.CreateWorkItemAsync(
@@ -36,7 +39,7 @@ public class TicketEnricher(
 
         await _devOpsService.AddChildLinkAsync(sprintPlanTicketId, created.Id);
 
-        await UpdateSprintPlanDescriptionAsync(sprintPlanTicketId, item.Text, created.Id);
+        await UpdateSprintPlanDescriptionAsync(sprintPlanTicketId, item.Text, created.Id, sprintPlan.Description);
 
         return new WorkItemResult(created.Id, created.Title, created.Url);
     }
@@ -70,11 +73,8 @@ public class TicketEnricher(
         return sb.ToString();
     }
 
-    private async Task UpdateSprintPlanDescriptionAsync(int sprintPlanTicketId, string itemText, int newTicketId)
+    private async Task UpdateSprintPlanDescriptionAsync(int sprintPlanTicketId, string itemText, int newTicketId, string currentDescription)
     {
-        WorkItem workItem = await _devOpsService.GetWorkItemAsync(sprintPlanTicketId);
-        string currentDescription = workItem.Description;
-
         // Replace the plain item text with the ticket-number-prefixed version
         string updatedDescription = currentDescription.Replace(
             itemText,

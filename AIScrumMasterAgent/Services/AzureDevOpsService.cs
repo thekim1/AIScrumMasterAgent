@@ -58,6 +58,9 @@ public class AzureDevOpsService(IHttpClientFactory httpClientFactory, AppConfig 
         if (request.EstimatedHours.HasValue)
             patchOps.Add(new { op = "add", path = "/fields/Microsoft.VSTS.Scheduling.OriginalEstimate", value = (object)request.EstimatedHours.Value });
 
+        if (!string.IsNullOrEmpty(request.IterationPath))
+            patchOps.Add(new { op = "add", path = "/fields/System.IterationPath", value = request.IterationPath });
+
         string json = JsonSerializer.Serialize(patchOps);
         StringContent content = new(json, Encoding.UTF8, "application/json-patch+json");
 
@@ -245,7 +248,8 @@ public class AzureDevOpsService(IHttpClientFactory httpClientFactory, AppConfig 
             Title = GetField("System.Title"),
             Description = GetField("System.Description"),
             WorkItemType = GetField("System.WorkItemType"),
-            Url = api.Url ?? ""
+            Url = api.Url ?? "",
+            IterationPath = GetField("System.IterationPath")
         };
     }
 

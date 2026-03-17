@@ -8,4 +8,5 @@ public class CreateWorkItemRequest
     public string? Tags { get; set; }
     public int? ParentId { get; set; }
     public double? EstimatedHours { get; set; }
+    public string? IterationPath { get; set; }
 }
