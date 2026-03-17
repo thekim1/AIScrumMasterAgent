@@ -91,10 +91,10 @@ public class AzureDevOpsService(IHttpClientFactory httpClientFactory, AppConfig 
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task AddChildLinkAsync(int parentId, int childId)
+    public async Task AddRelatedLinkAsync(int sourceId, int targetId)
     {
         HttpClient client = CreateClient();
-        string url = $"{BaseUrl}/_apis/wit/workitems/{childId}?api-version=7.1";
+        string url = $"{BaseUrl}/_apis/wit/workitems/{sourceId}?api-version=7.1";
 
         var patchOps = new[]
         {
@@ -104,8 +104,8 @@ public class AzureDevOpsService(IHttpClientFactory httpClientFactory, AppConfig 
                 path = "/relations/-",
                 value = new
                 {
-                    rel = "System.LinkTypes.Hierarchy-Reverse",
-                    url = $"{_config.AzureDevOps.OrgUrl}/_apis/wit/workitems/{parentId}"
+                    rel = "System.LinkTypes.Related",
+                    url = $"{_config.AzureDevOps.OrgUrl}/_apis/wit/workitems/{targetId}"
                 }
             }
         };

@@ -37,7 +37,7 @@ public class TicketEnricher(
         WorkItem created = await _devOpsService.CreateWorkItemAsync(
             _config.Agent.SprintPlanTicketType, createRequest);
 
-        await _devOpsService.AddChildLinkAsync(sprintPlanTicketId, created.Id);
+        await _devOpsService.AddRelatedLinkAsync(created.Id, sprintPlanTicketId);
 
         await UpdateSprintPlanDescriptionAsync(sprintPlanTicketId, item.Text, created.Id, sprintPlan.Description);
 
