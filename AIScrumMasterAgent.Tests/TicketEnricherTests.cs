@@ -117,13 +117,13 @@ public class TicketEnricherTests
     }
 
     [Fact]
-    public async Task EnrichAsync_SetsEstimatedHoursOnCreateRequest()
+    public async Task EnrichAsync_SetsSizeOnCreateRequest()
     {
         SprintPlanItem item = new("Do something", null, null, ItemKind.Implementation);
         GeneratedTicket ticket = new("Do something", "Desc", ["AC"], "3-5h", ["Step"], "Task", ["tag"]);
 
         _claudeMock.Setup(c => c.GenerateTicketAsync(item, null)).ReturnsAsync(ticket);
-        _devOpsMock.Setup(d => d.CreateWorkItemAsync("User Story", It.Is<CreateWorkItemRequest>(r => r.EstimatedHours == 3.0)))
+        _devOpsMock.Setup(d => d.CreateWorkItemAsync("User Story", It.Is<CreateWorkItemRequest>(r => r.Size == 3.0)))
             .ReturnsAsync(new WorkItem { Id = 400, Title = "Do something", Url = "http://example.com/400" });
         _devOpsMock.Setup(d => d.GetWorkItemAsync(20))
             .ReturnsAsync(new WorkItem { Id = 20, Description = "Do something in plan" });
@@ -132,7 +132,7 @@ public class TicketEnricherTests
 
         result.ShouldNotBeNull();
         _devOpsMock.Verify(
-            d => d.CreateWorkItemAsync("User Story", It.Is<CreateWorkItemRequest>(r => r.EstimatedHours == 3.0)),
+            d => d.CreateWorkItemAsync("User Story", It.Is<CreateWorkItemRequest>(r => r.Size == 3.0)),
             Times.Once);
     }
 

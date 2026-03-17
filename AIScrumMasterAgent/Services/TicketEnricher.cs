@@ -30,7 +30,7 @@ public class TicketEnricher(
             Title = generatedTicket.Title,
             Description = description,
             Tags = tags,
-            EstimatedHours = ParseEstimatedHours(generatedTicket.EstimatedHours),
+            Size = ParseEstimatedHours(generatedTicket.EstimatedHours),
             IterationPath = sprintPlan.IterationPath
         };
 

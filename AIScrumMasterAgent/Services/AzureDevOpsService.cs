@@ -55,8 +55,8 @@ public class AzureDevOpsService(IHttpClientFactory httpClientFactory, AppConfig 
         if (!string.IsNullOrEmpty(request.Tags))
             patchOps.Add(new { op = "add", path = "/fields/System.Tags", value = request.Tags });
 
-        if (request.EstimatedHours.HasValue)
-            patchOps.Add(new { op = "add", path = "/fields/Microsoft.VSTS.Scheduling.OriginalEstimate", value = (object)request.EstimatedHours.Value });
+        if (request.Size.HasValue)
+            patchOps.Add(new { op = "add", path = "/fields/Microsoft.VSTS.Scheduling.Size", value = (object)request.Size.Value });
 
         if (!string.IsNullOrEmpty(request.IterationPath))
             patchOps.Add(new { op = "add", path = "/fields/System.IterationPath", value = request.IterationPath });
