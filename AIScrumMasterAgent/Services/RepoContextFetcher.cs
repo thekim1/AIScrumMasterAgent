@@ -9,23 +9,33 @@ public class RepoContextFetcher(IAzureDevOpsService devOpsService) : IRepoContex
 
     public async Task<RepoContext> FetchAsync(string repoId, string repoName, string solutionFolder)
     {
-        string normalizedFolder = solutionFolder.TrimEnd('/');
+        string normalizedFolder = (solutionFolder ?? string.Empty).TrimEnd('/');
+        if (string.IsNullOrEmpty(normalizedFolder))
+        {
+            normalizedFolder = "/";
+        }
 
         List<string> paths = await _devOpsService.GetFolderTreeAsync(repoId, normalizedFolder, depth: 3);
         string folderTree = FormatFolderTree(paths, normalizedFolder);
 
-        string agentContextPath = $"{normalizedFolder}/AGENT_CONTEXT.md";
+        string agentContextPath = normalizedFolder == "/" 
+            ? "/AGENT_CONTEXT.md" 
+            : $"{normalizedFolder}/AGENT_CONTEXT.md";
         string? agentContextContent = await _devOpsService.GetFileContentAsync(repoId, agentContextPath);
 
-        return new RepoContext(repoName, solutionFolder, folderTree, agentContextContent);
+        return new RepoContext(repoName, normalizedFolder, folderTree, agentContextContent);
     }
 
     internal static string FormatFolderTree(IEnumerable<string> paths, string rootFolder)
     {
         StringBuilder sb = new();
-        string normalizedRoot = rootFolder.TrimEnd('/');
+        string normalizedRoot = (rootFolder ?? string.Empty).TrimEnd('/');
+        if (string.IsNullOrEmpty(normalizedRoot))
+        {
+            normalizedRoot = "/";
+        }
 
-        sb.AppendLine($"{normalizedRoot}/");
+        sb.AppendLine(normalizedRoot == "/" ? "/" : $"{normalizedRoot}/");
 
         foreach (string? path in paths.OrderBy(p => p))
         {

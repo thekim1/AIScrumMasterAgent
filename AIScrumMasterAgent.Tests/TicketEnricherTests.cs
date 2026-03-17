@@ -90,6 +90,25 @@ public class TicketEnricherTests
         result!.Id.ShouldBe(300);
     }
 
+    [Fact]
+    public async Task EnrichAsync_AddsRelatedLinkToSprintPlan()
+    {
+        SprintPlanItem item = new("Some task", null, null, ItemKind.Implementation);
+        int sprintPlanId = 15;
+        int createdWorkItemId = 400;
+
+        _claudeMock.Setup(c => c.GenerateTicketAsync(item, null))
+            .ReturnsAsync(MakeGeneratedTicket());
+        _devOpsMock.Setup(d => d.CreateWorkItemAsync("User Story", It.IsAny<CreateWorkItemRequest>()))
+            .ReturnsAsync(new WorkItem { Id = createdWorkItemId, Title = "Generated Title", Url = "http://example.com/400" });
+        _devOpsMock.Setup(d => d.GetWorkItemAsync(sprintPlanId))
+            .ReturnsAsync(new WorkItem { Id = sprintPlanId, Description = "Some task" });
+
+        await CreateEnricher().EnrichAsync(sprintPlanId, item, null);
+
+        _devOpsMock.Verify(d => d.AddRelatedLinkAsync(createdWorkItemId, sprintPlanId), Times.Once);
+    }
+
     [Theory]
     [InlineData("3-5h", 3.0)]
     [InlineData("4-8h", 4.0)]
@@ -117,13 +136,13 @@ public class TicketEnricherTests
     }
 
     [Fact]
-    public async Task EnrichAsync_SetsEstimatedHoursOnCreateRequest()
+    public async Task EnrichAsync_SetsSizeOnCreateRequest()
     {
         SprintPlanItem item = new("Do something", null, null, ItemKind.Implementation);
         GeneratedTicket ticket = new("Do something", "Desc", ["AC"], "3-5h", ["Step"], "Task", ["tag"]);
 
         _claudeMock.Setup(c => c.GenerateTicketAsync(item, null)).ReturnsAsync(ticket);
-        _devOpsMock.Setup(d => d.CreateWorkItemAsync("User Story", It.Is<CreateWorkItemRequest>(r => r.EstimatedHours == 3.0)))
+        _devOpsMock.Setup(d => d.CreateWorkItemAsync("User Story", It.Is<CreateWorkItemRequest>(r => r.Size == 3.0)))
             .ReturnsAsync(new WorkItem { Id = 400, Title = "Do something", Url = "http://example.com/400" });
         _devOpsMock.Setup(d => d.GetWorkItemAsync(20))
             .ReturnsAsync(new WorkItem { Id = 20, Description = "Do something in plan" });
@@ -132,7 +151,7 @@ public class TicketEnricherTests
 
         result.ShouldNotBeNull();
         _devOpsMock.Verify(
-            d => d.CreateWorkItemAsync("User Story", It.Is<CreateWorkItemRequest>(r => r.EstimatedHours == 3.0)),
+            d => d.CreateWorkItemAsync("User Story", It.Is<CreateWorkItemRequest>(r => r.Size == 3.0)),
             Times.Once);
     }
 

@@ -30,20 +30,32 @@ public class TicketEnricher(
             Title = generatedTicket.Title,
             Description = description,
             Tags = tags,
-            EstimatedHours = ParseEstimatedHours(generatedTicket.EstimatedHours),
+            Size = ParseEstimatedHours(generatedTicket.EstimatedHours),
             IterationPath = sprintPlan.IterationPath
         };
 
         WorkItem created = await _devOpsService.CreateWorkItemAsync(
             _config.Agent.SprintPlanTicketType, createRequest);
 
-        await _devOpsService.AddChildLinkAsync(sprintPlanTicketId, created.Id);
+        await _devOpsService.AddRelatedLinkAsync(created.Id, sprintPlanTicketId);
 
         await UpdateSprintPlanDescriptionAsync(sprintPlanTicketId, item.Text, created.Id, sprintPlan.Description);
 
         return new WorkItemResult(created.Id, created.Title, created.Url);
     }
 
+    /// <summary>
+    /// Parses the lower-bound estimated effort in hours from a free-form estimatedHours string.
+    /// The parsed value is used to populate the Azure DevOps "Size" field.
+    /// </summary>
+    /// <param name="estimatedHours">
+    /// A string that begins with a numeric value (integer or decimal) representing hours,
+    /// optionally followed by additional descriptive text (e.g., "3.5h - 6h").
+    /// </param>
+    /// <returns>
+    /// The leading numeric value interpreted as hours, or <c>null</c> if no valid leading
+    /// number can be parsed.
+    /// </returns>
     internal static double? ParseEstimatedHours(string? estimatedHours)
     {
         if (string.IsNullOrWhiteSpace(estimatedHours))

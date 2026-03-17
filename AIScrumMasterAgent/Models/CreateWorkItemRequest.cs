@@ -7,6 +7,6 @@ public class CreateWorkItemRequest
     public string? AreaPath { get; set; }
     public string? Tags { get; set; }
     public int? ParentId { get; set; }
-    public double? EstimatedHours { get; set; }
+    public double? Size { get; set; }
     public string? IterationPath { get; set; }
 }
