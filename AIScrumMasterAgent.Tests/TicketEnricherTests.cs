@@ -135,4 +135,24 @@ public class TicketEnricherTests
             d => d.CreateWorkItemAsync("User Story", It.Is<CreateWorkItemRequest>(r => r.EstimatedHours == 3.0)),
             Times.Once);
     }
+
+    [Fact]
+    public async Task EnrichAsync_CopiesIterationPathFromSprintPlan()
+    {
+        SprintPlanItem item = new("Do something", null, null, ItemKind.Implementation);
+        GeneratedTicket ticket = new("Do something", "Desc", ["AC"], "3-5h", ["Step"], "Task", ["tag"]);
+
+        _claudeMock.Setup(c => c.GenerateTicketAsync(item, null)).ReturnsAsync(ticket);
+        _devOpsMock.Setup(d => d.CreateWorkItemAsync("User Story", It.Is<CreateWorkItemRequest>(r => r.IterationPath == "Some\\Iteration\\Path")))
+            .ReturnsAsync(new WorkItem { Id = 500, Title = "Do something", Url = "http://example.com/500" });
+        _devOpsMock.Setup(d => d.GetWorkItemAsync(30))
+            .ReturnsAsync(new WorkItem { Id = 30, Description = "Do something in plan", IterationPath = "Some\\Iteration\\Path" });
+
+        WorkItemResult? result = await CreateEnricher().EnrichAsync(30, item, null);
+
+        result.ShouldNotBeNull();
+        _devOpsMock.Verify(
+            d => d.CreateWorkItemAsync("User Story", It.Is<CreateWorkItemRequest>(r => r.IterationPath == "Some\\Iteration\\Path")),
+            Times.Once);
+    }
 }

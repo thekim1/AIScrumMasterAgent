@@ -7,4 +7,5 @@ public class WorkItem
     public string Description { get; set; } = "";
     public string WorkItemType { get; set; } = "";
     public string Url { get; set; } = "";
+    public string IterationPath { get; set; } = "";
 }
