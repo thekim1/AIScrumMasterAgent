@@ -93,12 +93,23 @@ public class ConsoleUI(
         // Step 3: Get solution folder for each selected repo
         foreach (RepoInfo repo in selectedRepos)
         {
-            Console.Write($"Repo: {repo.Name}\nEnter solution folder path (e.g. src/MyApp) [default: /]: ");
+            Console.Write($"Repo: {repo.Name}\nEnter solution folder path (e.g. src/MyApp), or press Enter to skip repo context: ");
             string folder = Console.ReadLine()?.Trim() ?? "";
 
-            if (string.IsNullOrEmpty(folder))
+            if (string.IsNullOrWhiteSpace(folder))
             {
-                folder = "/";
+                continue;
+            }
+
+            if (folder == "/")
+            {
+                Console.Write("Fetching context from the repo root can be expensive for large repositories.\nType '/' again to confirm, or press Enter to cancel: ");
+                string confirm = Console.ReadLine()?.Trim() ?? "";
+                if (confirm != "/")
+                {
+                    // User did not confirm root fetch; skip context for this repo
+                    continue;
+                }
             }
 
             repoPaths[repo.Id] = folder;
@@ -115,7 +126,11 @@ public class ConsoleUI(
                     continue;
                 try
                 {
-                    Console.Write($"  {repo.Name}/{folder}...");
+                    string displayFolder = folder == "/" ? "" : folder;
+                    string displayPath = string.IsNullOrEmpty(displayFolder)
+                        ? repo.Name
+                        : $"{repo.Name}/{displayFolder}";
+                    Console.Write($"  {displayPath}...");
                     RepoContext ctx = await _contextFetcher.FetchAsync(repo.Id, repo.Name, folder);
                     repoContexts.Add(ctx);
                     Console.WriteLine(ctx.AgentContextContent is not null ? " ✓ (AGENT_CONTEXT.md found)" : " ✓ (no AGENT_CONTEXT.md)");

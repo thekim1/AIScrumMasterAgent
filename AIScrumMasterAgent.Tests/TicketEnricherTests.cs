@@ -90,6 +90,25 @@ public class TicketEnricherTests
         result!.Id.ShouldBe(300);
     }
 
+    [Fact]
+    public async Task EnrichAsync_AddsRelatedLinkToSprintPlan()
+    {
+        SprintPlanItem item = new("Some task", null, null, ItemKind.Implementation);
+        int sprintPlanId = 15;
+        int createdWorkItemId = 400;
+
+        _claudeMock.Setup(c => c.GenerateTicketAsync(item, null))
+            .ReturnsAsync(MakeGeneratedTicket());
+        _devOpsMock.Setup(d => d.CreateWorkItemAsync("User Story", It.IsAny<CreateWorkItemRequest>()))
+            .ReturnsAsync(new WorkItem { Id = createdWorkItemId, Title = "Generated Title", Url = "http://example.com/400" });
+        _devOpsMock.Setup(d => d.GetWorkItemAsync(sprintPlanId))
+            .ReturnsAsync(new WorkItem { Id = sprintPlanId, Description = "Some task" });
+
+        await CreateEnricher().EnrichAsync(sprintPlanId, item, null);
+
+        _devOpsMock.Verify(d => d.AddRelatedLinkAsync(createdWorkItemId, sprintPlanId), Times.Once);
+    }
+
     [Theory]
     [InlineData("3-5h", 3.0)]
     [InlineData("4-8h", 4.0)]
