@@ -2,6 +2,7 @@ using AIScrumMasterAgent.Models;
 using AIScrumMasterAgent.Services;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace AIScrumMasterAgent.UI;
 
@@ -185,7 +186,73 @@ public class ConsoleUI(
                     item = item with { Kind = ItemKind.Feature };
                 }
 
-                RepoContext? primaryContext = repoContexts.Count > 0 ? repoContexts[0] : null;
+                RepoContext? primaryContext = null;
+
+                if (selectedRepos.Count > 0)
+                {
+                    int defaultIdx = 0;
+                    for (int j = 0; j < selectedRepos.Count; j++)
+                    {
+                        if (item.Text.Contains(selectedRepos[j].Name, StringComparison.OrdinalIgnoreCase))
+                        {
+                            defaultIdx = j;
+                            break;
+                        }
+                    }
+
+                    Console.WriteLine("      Select repository:");
+                    for (int j = 0; j < selectedRepos.Count; j++)
+                    {
+                        string defaultMarker = j == defaultIdx ? " (default)" : "";
+                        repoPaths.TryGetValue(selectedRepos[j].Id, out string? p);
+                        string currentPath = string.IsNullOrWhiteSpace(p) ? "(none)" : p;
+                        Console.WriteLine($"        [{j + 1}] {selectedRepos[j].Name} (Path: {currentPath}){defaultMarker}");
+                    }
+                    Console.Write("      → [Number] to use as-is, [Number],[NewPath] to change path, or Enter for default: ");
+                    string repoInput = Console.ReadLine()?.Trim() ?? "";
+
+                    RepoInfo chosenRepo = selectedRepos[defaultIdx];
+                    repoPaths.TryGetValue(chosenRepo.Id, out string? cp);
+                    string chosenPath = cp ?? "";
+
+                    if (!string.IsNullOrEmpty(repoInput))
+                    {
+                        string[] parts = repoInput.Split(',', 2);
+                        if (int.TryParse(parts[0].Trim(), out int rIdx) && rIdx >= 1 && rIdx <= selectedRepos.Count)
+                        {
+                            chosenRepo = selectedRepos[rIdx - 1];
+                            repoPaths.TryGetValue(chosenRepo.Id, out cp);
+                            chosenPath = cp ?? "";
+                            if (parts.Length > 1)
+                            {
+                                chosenPath = parts[1].Trim();
+                            }
+                        }
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(chosenPath) && chosenPath != "(none)")
+                    {
+                        primaryContext = repoContexts.FirstOrDefault(c => 
+                            string.Equals(c.RepoName, chosenRepo.Name, StringComparison.OrdinalIgnoreCase) && 
+                            string.Equals(c.SolutionFolder, chosenPath, StringComparison.OrdinalIgnoreCase));
+
+                        if (primaryContext == null)
+                        {
+                            Console.Write($"      Fetching new context from {chosenRepo.Name}/{chosenPath}...");
+                            try
+                            {
+                                primaryContext = await _contextFetcher.FetchAsync(chosenRepo.Id, chosenRepo.Name, chosenPath);
+                                repoContexts.Add(primaryContext);
+                                Console.WriteLine(primaryContext.AgentContextContent is not null ? " ✓ (AGENT_CONTEXT.md found)" : " ✓ (no AGENT_CONTEXT.md)");
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($" ✗ Failed: {ex.Message}");
+                            }
+                        }
+                    }
+                }
+
                 Console.WriteLine($"Generating ticket for: \"{item.Text}\"");
 
                 try
@@ -198,7 +265,7 @@ public class ConsoleUI(
                     int? parentTicketId = null;
                     if (item.ParentFeature != null)
                     {
-                        System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(item.ParentFeature, @"^#(\d+)\b");
+                        Match m = Regex.Match(item.ParentFeature, @"^#(\d+)\b");
                         if (m.Success)
                         {
                             parentTicketId = int.Parse(m.Groups[1].Value);

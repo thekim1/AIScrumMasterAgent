@@ -176,9 +176,11 @@ The app will prompt you step-by-step:
 3. **Enter solution folder** — the path inside the repo where your solution lives (e.g. `src/MyApp`)
 4. **Review each todo item** — for each unlinked item choose:
    - `C` — generate and create a ticket
+   - `F` — create as a feature ticket
    - `S` — skip
    - `E` — exclude as meeting/admin task
-5. A summary is printed at the end with all created ticket numbers
+5. **Select repo context for item** — the chosen repository is automatically pre-selected based on the item text, but you can override it or change the solution path if necessary.
+6. A summary is printed at the end with all created ticket numbers
 
 ### Repo context (`AGENT_CONTEXT.md`)
 
